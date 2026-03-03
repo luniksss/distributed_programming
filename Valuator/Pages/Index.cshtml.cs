@@ -9,10 +9,12 @@ public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
     private readonly IDatabase _redisDb;
+    private readonly IConnectionMultiplexer _redis;
 
     public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis)
     {
         _logger = logger;
+        _redis = redis;
         _redisDb = redis.GetDatabase();
     }
 
@@ -58,7 +60,14 @@ public class IndexModel : PageModel
 
     private double CalculateSimilarity(string text, string currentId)
     {
-        var server = _redisDb.Multiplexer.GetServer("localhost:6379");
+        var endpoints = _redis.GetEndPoints();
+        if (endpoints.Length == 0)
+        {
+            _logger.LogWarning("No Redis endpoints available");
+            return 0.0;
+        }
+            
+        var server = _redis.GetServer(endpoints[0]);
         var keys = server.Keys(pattern: "TEXT-*");
 
         foreach (var key in keys)

@@ -12,7 +12,8 @@ public class Program
         builder.Services.AddRazorPages();
         builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         {
-            var configuration = ConfigurationOptions.Parse("localhost:6379");
+            var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
+            var configuration = ConfigurationOptions.Parse(redisConnectionString);
             return ConnectionMultiplexer.Connect(configuration);
         });
 
