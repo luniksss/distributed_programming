@@ -52,9 +52,30 @@ public class IndexModel : PageModel
         return Redirect($"summary?id={id}");
     }
 
-     private double CalculateRank(string text)
+     private double CalculateSimilarity(string text, string currentId)
     {
-        int letters = Regex.Matches(text, @"[а-яА-Яa-zA-ZёЁ]").Count;
-        return (double)letters / text.Length;
+        var endpoints = _redis.GetEndPoints();
+        if (endpoints.Length == 0)
+        {
+            _logger.LogWarning("No Redis endpoints available");
+            return 0.0;
+        }
+
+        var server = _redis.GetServer(endpoints[0]);
+        var keys = server.Keys(pattern: "TEXT-*");
+
+        foreach (var key in keys)
+        {
+            if (key.ToString() != $"TEXT-{currentId}")
+            {
+                var savedText = _redisDb.StringGet(key);
+                if (savedText == text)
+                {
+                    return 1.0;
+                }
+            }
+        }
+
+        return 0.0;
     }
 }
