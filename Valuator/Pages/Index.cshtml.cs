@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using StackExchange.Redis;
 using System.Text.RegularExpressions;
+using RabbitMQ.Client;
+using System.Text;
 
 namespace Valuator.Pages;
 

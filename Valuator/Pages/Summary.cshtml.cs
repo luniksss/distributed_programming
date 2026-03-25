@@ -21,6 +21,7 @@ public class SummaryModel : PageModel
 
     public double Rank { get; set; }
     public double Similarity { get; set; }
+    public bool IsRankComputed { get; set; }
 
     public void OnGet(string id)
     {
