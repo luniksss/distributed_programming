@@ -26,20 +26,27 @@ public class SummaryModel : PageModel
     {
         _logger.LogDebug(id);
 
-        // TODO: (pa1) проинициализировать свойства Rank и Similarity значениями из БД (Redis)
-        string rankKey = "RANK-" + id;
+        string rankKey = $"RANK-{id}";
         var rankValue = _redisDb.StringGet(rankKey);
+        _logger.LogDebug($"Rank value: {rankValue}");
         if (double.TryParse(rankValue, out double rank))
         {
             Rank = rank;
+            IsRankComputed = true;
+            _logger.LogDebug($"Rank parsed: {rank}");
+        }
+        else
+        {
+            IsRankComputed = false;
+            _logger.LogDebug("Rank not found or invalid");
         }
 
-        // ключи в константы
-        string similarityKey = "SIMILARITY-" + id;
+        string similarityKey = $"SIMILARITY-{id}";
         var similarityValue = _redisDb.StringGet(similarityKey);
         if (double.TryParse(similarityValue, out double similarity))
         {
             Similarity = similarity;
+            _logger.LogDebug($"Similarity: {similarity}");
         }
     }
 }

@@ -10,12 +10,14 @@ public class IndexModel : PageModel
     private readonly ILogger<IndexModel> _logger;
     private readonly IDatabase _redisDb;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IModel _rabbitChannel;
 
-    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis)
+    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis, IModel rabbitChannel)
     {
-        _logger = logger;
-        _redis = redis;
-        _redisDb = redis.GetDatabase();
+      _logger = logger;
+      _redis = redis;
+      _redisDb = redis.GetDatabase();
+      _rabbitChannel = rabbitChannel;
     }
 
     public void OnGet()
@@ -33,21 +35,19 @@ public class IndexModel : PageModel
 
         _logger.LogDebug(text);
 
-        string id = Guid.NewGuid().ToString();
+         string id = Guid.NewGuid().ToString();
 
-        string textKey = "TEXT-" + id;
-        // TODO: (pa1) сохранить в БД (Redis) text по ключу textKey
-        _redisDb.StringSet(textKey, text);
+        _redisDb.StringSet($"TEXT-{id}", text);
 
-        string rankKey = "RANK-" + id;
-        // TODO: (pa1) посчитать rank и сохранить в БД (Redis) по ключу rankKey
-        double rank = CalculateRank(text);
-        _redisDb.StringSet(rankKey, rank.ToString());
-
-        string similarityKey = "SIMILARITY-" + id;
-        // TODO: (pa1) посчитать similarity и сохранить в БД (Redis) по ключу similarityKey
         double similarity = CalculateSimilarity(text, id);
-        _redisDb.StringSet(similarityKey, similarity.ToString());
+        _redisDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
+
+        var message = id;
+        var body = Encoding.UTF8.GetBytes(message);
+        _rabbitChannel.BasicPublish(exchange: "",
+                                    routingKey: "rank_tasks",
+                                    basicProperties: null,
+                                    body: body);
 
         return Redirect($"summary?id={id}");
     }
@@ -56,32 +56,5 @@ public class IndexModel : PageModel
     {
         int letters = Regex.Matches(text, @"[а-яА-Яa-zA-ZёЁ]").Count;
         return (double)letters / text.Length;
-    }
-
-    private double CalculateSimilarity(string text, string currentId)
-    {
-        var endpoints = _redis.GetEndPoints();
-        if (endpoints.Length == 0)
-        {
-            _logger.LogWarning("No Redis endpoints available");
-            return 0.0;
-        }
-
-        var server = _redis.GetServer(endpoints[0]);
-        var keys = server.Keys(pattern: "TEXT-*");
-
-        foreach (var key in keys)
-        {
-            if (key.ToString() != $"TEXT-{currentId}")
-            {
-                var savedText = _redisDb.StringGet(key);
-                if (savedText == text)
-                {
-                    return 1.0;
-                }
-            }
-        }
-
-        return 0.0;
     }
 }

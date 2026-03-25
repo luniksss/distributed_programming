@@ -2,5 +2,23 @@
 @model Valuator.Pages.SummaryModel
 @{
 }
-<p>Оценка содержания: @Model.Rank</p>
+<p>
+    @if (Model.IsRankComputed)
+    {
+        @:Оценка содержания: @Model.Rank
+    }
+    else
+    {
+        @:Оценка содержания не завершена
+    }
+</p>
 <p>Плагиат: @Model.Similarity</p>
+
+@if (!Model.IsRankComputed)
+{
+    <script>
+        setTimeout(function() {
+            location.reload();
+        }, 5000);
+    </script>
+}

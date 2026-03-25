@@ -84,6 +84,21 @@ services:
     networks:
       - valuator-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: valuator-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - valuator-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 networks:
   valuator-network:
     driver: bridge

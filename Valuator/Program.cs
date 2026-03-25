@@ -1,4 +1,6 @@
 using StackExchange.Redis;
+using RabbitMQ.Client;
+using System.Text;
 
 namespace Valuator;
 
@@ -15,6 +17,25 @@ public class Program
             var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
             var configuration = ConfigurationOptions.Parse(redisConnectionString);
             return ConnectionMultiplexer.Connect(configuration);
+        });
+
+        builder.Services.AddSingleton<IConnection>(sp =>
+        {
+            var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+            var factory = new ConnectionFactory() { HostName = host };
+            return factory.CreateConnection();
+        });
+
+        builder.Services.AddSingleton<IModel>(sp =>
+        {
+            var connection = sp.GetRequiredService<IConnection>();
+            var channel = connection.CreateModel();
+            channel.QueueDeclare(queue: "rank_tasks",
+                                 durable: true,
+                                 exclusive: false,
+                                 autoDelete: false,
+                                 arguments: null);
+            return channel;
         });
 
         var app = builder.Build();
