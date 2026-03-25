@@ -66,7 +66,7 @@ public class IndexModel : PageModel
             _logger.LogWarning("No Redis endpoints available");
             return 0.0;
         }
-            
+
         var server = _redis.GetServer(endpoints[0]);
         var keys = server.Keys(pattern: "TEXT-*");
 

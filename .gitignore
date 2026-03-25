@@ -6,3 +6,4 @@ obj/
 /.idea/
 
 /nginx/logs/
+*.DotSettings.user
