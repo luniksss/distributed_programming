@@ -37,7 +37,7 @@ public class IndexModel : PageModel
 
         _logger.LogDebug(text);
 
-         string id = Guid.NewGuid().ToString();
+        string id = Guid.NewGuid().ToString();
 
         _redisDb.StringSet($"TEXT-{id}", text);
 
