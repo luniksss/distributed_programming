@@ -16,9 +16,23 @@
 
 @if (!Model.IsRankComputed)
 {
+    <script src="~/js/centrifuge.js"></script>
     <script>
-        setTimeout(function() {
-            location.reload();
-        }, 5000);
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+
+        if (id) {
+            const centrifuge = new Centrifuge('ws://localhost:8000/connection/websocket');
+            const sub = centrifuge.newSubscription("notifications:" + id);
+
+            sub.on('publication', function(ctx) {
+                if (ctx.data.type === "RankCalculated") {
+                    location.reload(); 
+                }
+            });
+
+            sub.subscribe();
+            centrifuge.connect();
+        }
     </script>
 }

@@ -85,6 +85,10 @@ class Program
                 return;
             }
 
+            TimeSpan interval = TimeSpan.FromSeconds(new Random().Next(3, 15));
+            Console.WriteLine($"Waiting {interval}");
+            await Task.Delay(interval);
+
             double rank = CalculateRank(text);
             await redisDb.StringSetAsync($"RANK-{id}", rank.ToString());
 

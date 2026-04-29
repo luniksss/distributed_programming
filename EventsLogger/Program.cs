@@ -2,12 +2,15 @@ using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Net.Http;
+using System.Net.Http.Headers;
 
 namespace EventsLogger;
 
 class Program
 {
     private const string EventsExchangeName = "events_exchange";
+    private static readonly HttpClient _httpClient = new HttpClient();
 
     static async Task Main(string[] args)
     {
@@ -79,6 +82,28 @@ class Program
             double value = root.GetProperty("Value").GetDouble();
 
             Console.WriteLine($"{type} {id} {value}");
+
+            var payload = new {
+                method = "publish",
+                @params = new {
+                    channel = $"notifications:{id}",
+                    data = new { type, id, value }
+                }
+            };
+
+            var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            
+            _httpClient.DefaultRequestHeaders.Clear();
+            try 
+            {
+                var response = await _httpClient.PostAsync("http://centrifugo:8000/api", content);
+                string result = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Ответ от Centrifugo: {response.StatusCode} - {result}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ОШИБКА отправки в Centrifugo: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {

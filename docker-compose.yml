@@ -157,6 +157,22 @@ services:
       - rabbitmq
     networks:
       - valuator-network
+    
+  centrifugo:
+    image: centrifugo/centrifugo:v5
+    container_name: valuator-centrifugo
+    ports:
+      - "8000:8000"
+    environment:
+      - CENTRIFUGO_ADMIN=true
+      - CENTRIFUGO_ADMIN_INSECURE=true
+      - CENTRIFUGO_CLIENT_INSECURE=true
+      - CENTRIFUGO_API_INSECURE=true
+      - CENTRIFUGO_ALLOWED_ORIGINS=*
+      - CENTRIFUGO_ALLOW_SUBSCRIBE_FOR_CLIENT=true
+      - CENTRIFUGO_NAMESPACES=[{"name":"notifications","allow_subscribe_for_client":true}]
+    networks:
+      - valuator-network
 
 networks:
   valuator-network:
