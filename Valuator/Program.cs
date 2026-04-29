@@ -23,18 +23,37 @@ public class Program
         {
             var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
             var factory = new ConnectionFactory() { HostName = host };
-            return factory.CreateConnection();
+            const int maxRetries = 10;
+            for (int i = 1; i <= maxRetries; i++)
+            {
+                try
+                {
+                    return factory.CreateConnection();
+                }
+                catch
+                {
+                    Thread.Sleep(2000);
+                }
+            }
+            throw new Exception("не удалось подключиться к RabbitMQ");
         });
 
         builder.Services.AddSingleton<IModel>(sp =>
         {
             var connection = sp.GetRequiredService<IConnection>();
             var channel = connection.CreateModel();
-            channel.QueueDeclare(queue: "rank_tasks",
-                                 durable: true,
-                                 exclusive: false,
-                                 autoDelete: false,
-                                 arguments: null);
+            
+            channel.QueueDeclare(
+                queue: "rank_tasks", 
+                durable: true, 
+                exclusive: false, 
+                autoDelete: false
+            );
+            channel.ExchangeDeclare(
+                exchange: "events_exchange", 
+                type: ExchangeType.Fanout
+            );
+
             return channel;
         });
 
