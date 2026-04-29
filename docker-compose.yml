@@ -14,6 +14,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - valuator-network
     restart: unless-stopped
@@ -36,6 +38,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
     depends_on:
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - valuator-network
@@ -130,6 +134,29 @@ services:
     networks:
       - valuator-network
     restart: unless-stopped
+  eventslogger1:
+    build: EventsLogger
+    container_name: valuator-logger1
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      - app1
+      - app2
+      - rabbitmq
+    networks:
+      - valuator-network
+
+  eventslogger2:
+    build: EventsLogger
+    container_name: valuator-logger2
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      - app1
+      - app2
+      - rabbitmq
+    networks:
+      - valuator-network
 
 networks:
   valuator-network:
