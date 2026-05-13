@@ -42,15 +42,15 @@ public class Program
         {
             var connection = sp.GetRequiredService<IConnection>();
             var channel = connection.CreateModel();
-            
+
             channel.QueueDeclare(
-                queue: "rank_tasks", 
-                durable: true, 
-                exclusive: false, 
+                queue: "rank_tasks",
+                durable: true,
+                exclusive: false,
                 autoDelete: false
             );
             channel.ExchangeDeclare(
-                exchange: "events_exchange", 
+                exchange: "events_exchange",
                 type: ExchangeType.Fanout
             );
 
