@@ -28,7 +28,7 @@ public class SummaryModel : PageModel
         string region = _shardResolver.GetShardKey(id);
         if (string.IsNullOrEmpty(region))
         {
-            _logger.LogWarning("Регион для ID {Id} не найден", id);
+            _logger.LogWarning("регион для ID {Id} не найден", id);
             IsRankComputed = false;
             return;
         }
@@ -38,19 +38,25 @@ public class SummaryModel : PageModel
         
         string rankKey = $"RANK-{id}";
         var rankValue = shardDb.StringGet(rankKey);
+        _logger.LogDebug($"rank: {rankValue}");
         if (double.TryParse(rankValue, out double rank))
         {
             Rank = rank;
             IsRankComputed = true;
+            _logger.LogDebug($"rank распарсенный: {rank}");
         }
         else
         {
             IsRankComputed = false;
+            _logger.LogDebug("rank не найден или невалидный");
         }
 
         string similarityKey = $"SIMILARITY-{id}";
         var similarityValue = shardDb.StringGet(similarityKey);
         if (double.TryParse(similarityValue, out double similarity))
+        {
             Similarity = similarity;
+            _logger.LogDebug($"similarity: {similarity}");
+        }
     }
 }

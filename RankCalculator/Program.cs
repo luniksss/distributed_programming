@@ -93,40 +93,55 @@ class Program
         BasicDeliverEventArgs ea, IConnectionMultiplexer mainRedis, Dictionary<string, IConnectionMultiplexer> shardConnections)
     {
         var id = Encoding.UTF8.GetString(ea.Body.ToArray());
-
-        var mainDb = mainRedis.GetDatabase();
-        string region = mainDb.StringGet($"SHARD-{id}");
-        if (string.IsNullOrEmpty(region))
+        try
         {
-            Console.WriteLine($"Регион для ID {id} не найден, пропускаем");
-            await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
-            return;
-        }
-        Console.WriteLine($"LOOKUP: {id}, {region}");
+            var mainDb = mainRedis.GetDatabase();
+            string region = mainDb.StringGet($"SHARD-{id}");
+            if (string.IsNullOrEmpty(region))
+            {
+                Console.WriteLine($"регион для ID {id} не найден");
+                await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
+                return;
+            }
+            Console.WriteLine($"LOOKUP: {id}, {region}");
 
-        if (!shardConnections.TryGetValue(region, out var shardRedis))
+            if (!shardConnections.TryGetValue(region, out var shardRedis))
+            {
+                Console.WriteLine($"неизвестный регион {region}");
+                await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
+                return;
+            }
+
+            IDatabase shardDb = shardRedis.GetDatabase();
+            var text = await shardDb.StringGetAsync($"TEXT-{id}");
+            if (text.IsNullOrEmpty)
+            {
+                await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
+                return;
+            }
+
+            double rank = CalculateRank(text);
+            await shardDb.StringSetAsync($"RANK-{id}", rank.ToString());
+
+            var eventData = JsonSerializer.Serialize(new { 
+                Type = "RankCalculated", 
+                Id = id, 
+                Value = rank 
+            });
+            await publishChannel.BasicPublishAsync(
+                exchange: EventsExchangeName, 
+                routingKey: "", 
+                body: Encoding.UTF8.GetBytes(eventData)
+            );
+
+            await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
+            Console.WriteLine($"rank {rank} для {id} обработан и сохранён в сегмент {region}");
+        }
+        catch (Exception ex)
         {
-            Console.WriteLine($"Неизвестный регион {region}");
-            await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
-            return;
+            Console.WriteLine($"ошибка: {ex.Message}");
+            await consumeChannel.BasicNackAsync(ea.DeliveryTag, false, true);
         }
-
-        IDatabase shardDb = shardRedis.GetDatabase();
-        var text = await shardDb.StringGetAsync($"TEXT-{id}");
-        if (text.IsNullOrEmpty)
-        {
-            await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
-            return;
-        }
-
-        double rank = CalculateRank(text);
-        await shardDb.StringSetAsync($"RANK-{id}", rank.ToString());
-
-        var eventData = JsonSerializer.Serialize(new { Type = "RankCalculated", Id = id, Value = rank });
-        await publishChannel.BasicPublishAsync(exchange: EventsExchangeName, routingKey: "", body: Encoding.UTF8.GetBytes(eventData));
-
-        await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);
-        Console.WriteLine($"rank {rank} для {id} обработан и сохранён в сегмент {region}");
     }
 
     private static double CalculateRank(string text)
