@@ -9,10 +9,19 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - REDIS_CONNECTION=redis:6379
+      - DB_MAIN=redis-main:6379
+      - DB_RU=redis-ru:6379
+      - DB_EU=redis-eu:6379
+      - DB_ASIA=redis-asia:6379
       - RABBITMQ_HOST=rabbitmq
     depends_on:
-      redis:
+      redis-main:
+        condition: service_healthy
+      redis-ru:
+        condition: service_healthy
+      redis-eu:
+        condition: service_healthy
+      redis-asia:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -34,10 +43,19 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - REDIS_CONNECTION=redis:6379
+      - DB_MAIN=redis-main:6379
+      - DB_RU=redis-ru:6379
+      - DB_EU=redis-eu:6379
+      - DB_ASIA=redis-asia:6379
       - RABBITMQ_HOST=rabbitmq
     depends_on:
-      redis:
+      redis-main:
+        condition: service_healthy
+      redis-ru:
+        condition: service_healthy
+      redis-eu:
+        condition: service_healthy
+      redis-asia:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -76,19 +94,57 @@ services:
       retries: 3
       start_period: 5s
 
-  redis:
+  redis-main:
     image: redis:alpine
-    container_name: valuator-redis
+    container_name: redis-main
     ports:
-      - "6380:6379"
+      - "6383:6379"
+    networks:
+      - valuator-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
-      start_period: 10s
+
+  redis-ru:
+    image: redis:alpine
+    container_name: redis-ru
+    ports:
+      - "6380:6379"
     networks:
       - valuator-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-eu:
+    image: redis:alpine
+    container_name: redis-eu
+    ports:
+      - "6381:6379"
+    networks:
+      - valuator-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-asia:
+    image: redis:alpine
+    container_name: redis-asia
+    ports:
+      - "6382:6379"
+    networks:
+      - valuator-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -109,10 +165,19 @@ services:
     build: RankCalculator
     container_name: valuator-rankcalculator1
     environment:
-      - REDIS_CONNECTION=redis:6379
+      - DB_MAIN=redis-main:6379
+      - DB_RU=redis-ru:6379
+      - DB_EU=redis-eu:6379
+      - DB_ASIA=redis-asia:6379
       - RABBITMQ_HOST=rabbitmq
     depends_on:
-      redis:
+      redis-main:
+        condition: service_healthy
+      redis-ru:
+        condition: service_healthy
+      redis-eu:
+        condition: service_healthy
+      redis-asia:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -124,16 +189,26 @@ services:
     build: RankCalculator
     container_name: valuator-rankcalculator2
     environment:
-      - REDIS_CONNECTION=redis:6379
+      - DB_MAIN=redis-main:6379
+      - DB_RU=redis-ru:6379
+      - DB_EU=redis-eu:6379
+      - DB_ASIA=redis-asia:6379
       - RABBITMQ_HOST=rabbitmq
     depends_on:
-      redis:
+      redis-main:
+        condition: service_healthy
+      redis-ru:
+        condition: service_healthy
+      redis-eu:
+        condition: service_healthy
+      redis-asia:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
       - valuator-network
     restart: unless-stopped
+
   eventslogger1:
     build: EventsLogger
     container_name: valuator-logger1

@@ -11,15 +11,22 @@ namespace Valuator.Pages;
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
-    private readonly IDatabase _redisDb;
-    private readonly IConnectionMultiplexer _redis;
+    private readonly IShardResolver _shardResolver;
     private readonly IModel _rabbitChannel;
 
-    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis, IModel rabbitChannel)
+    private readonly Dictionary<string, string> _countryToRegion = new()
+    {
+        ["Russia"] = "RU",
+        ["France"] = "EU",
+        ["Germany"] = "EU",
+        ["UAE"] = "ASIA",
+        ["India"] = "ASIA"
+    };
+
+    public IndexModel(ILogger<IndexModel> logger, IShardResolver shardResolver, IModel rabbitChannel)
     {
       _logger = logger;
-      _redis = redis;
-      _redisDb = redis.GetDatabase();
+      _shardResolver = shardResolver;
       _rabbitChannel = rabbitChannel;
     }
 
@@ -28,7 +35,7 @@ public class IndexModel : PageModel
 
     }
 
-    public IActionResult OnPost(string text)
+    public IActionResult OnPost(string text, string country)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -37,11 +44,21 @@ public class IndexModel : PageModel
         }
 
         _logger.LogDebug(text);
+        if (string.IsNullOrEmpty(country) || !_countryToRegion.ContainsKey(country))
+        {
+            ModelState.AddModelError(string.Empty, "Выберите корректную страну.");
+            return Page();
+        }
 
+        string region = _countryToRegion[country];
         string id = Guid.NewGuid().ToString();
-        _redisDb.StringSet($"TEXT-{id}", text);
-        double similarity = CalculateSimilarity(text, id);
-        _redisDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
+
+        _shardResolver.SaveShardMapping(id, region);
+        IDatabase shardDb = _shardResolver.GetShardDatabase(region);
+        shardDb.StringSet($"TEXT-{id}", text);
+
+        double similarity = CalculateSimilarityInShard(text, id, shardDb, region);
+        shardDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
 
         PublishSimilarityEvent(id, similarity);
         PublishRankTask(id);
@@ -49,30 +66,25 @@ public class IndexModel : PageModel
         return Redirect($"summary?id={id}");
     }
 
-     private double CalculateSimilarity(string text, string currentId)
+    private double CalculateSimilarityInShard(string text, string currentId, IDatabase shardDb, string region)
     {
-        var endpoints = _redis.GetEndPoints();
-        if (endpoints.Length == 0)
-        {
-            _logger.LogWarning("No Redis endpoints available");
+        _logger.LogInformation("LOOKUP: {Id}, {Region}", currentId, region);
+        var endpoints = ((IConnectionMultiplexer?)shardDb.Multiplexer)?.GetEndPoints();
+        if (endpoints == null || endpoints.Length == 0)
             return 0.0;
-        }
 
-        var server = _redis.GetServer(endpoints[0]);
+        var server = shardDb.Multiplexer.GetServer(endpoints[0]);
         var keys = server.Keys(pattern: "TEXT-*");
 
         foreach (var key in keys)
         {
             if (key.ToString() != $"TEXT-{currentId}")
             {
-                var savedText = _redisDb.StringGet(key);
+                var savedText = shardDb.StringGet(key);
                 if (savedText == text)
-                {
                     return 1.0;
-                }
             }
         }
-
         return 0.0;
     }
 

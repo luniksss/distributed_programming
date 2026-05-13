@@ -10,14 +10,29 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
         builder.Services.AddRazorPages();
-        builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+        builder.Services.AddKeyedSingleton<IConnectionMultiplexer>("MAIN", (sp, key) =>
         {
-            var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
-            var configuration = ConfigurationOptions.Parse(redisConnectionString);
-            return ConnectionMultiplexer.Connect(configuration);
+            var connString = Environment.GetEnvironmentVariable("DB_MAIN") ?? "localhost:6383";
+            return ConnectionMultiplexer.Connect(connString);
         });
+
+        builder.Services.AddKeyedSingleton<IConnectionMultiplexer>("RU", (sp, key) =>
+        {
+            var connString = Environment.GetEnvironmentVariable("DB_RU") ?? "localhost:6380";
+            return ConnectionMultiplexer.Connect(connString);
+        });
+        builder.Services.AddKeyedSingleton<IConnectionMultiplexer>("EU", (sp, key) =>
+        {
+            var connString = Environment.GetEnvironmentVariable("DB_EU") ?? "localhost:6381";
+            return ConnectionMultiplexer.Connect(connString);
+        });
+        builder.Services.AddKeyedSingleton<IConnectionMultiplexer>("ASIA", (sp, key) =>
+        {
+            var connString = Environment.GetEnvironmentVariable("DB_ASIA") ?? "localhost:6382";
+            return ConnectionMultiplexer.Connect(connString);
+        });
+        builder.Services.AddScoped<IShardResolver, ShardResolver>();
 
         builder.Services.AddSingleton<IConnection>(sp =>
         {
@@ -59,7 +74,6 @@ public class Program
 
         var app = builder.Build();
 
-        // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/Error");
