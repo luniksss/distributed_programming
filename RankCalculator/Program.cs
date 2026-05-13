@@ -16,20 +16,30 @@ class Program
     {
         string redisConnection = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
         string rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+        string rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+        string rabbitPass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
+
         var redis = await ConnectionMultiplexer.ConnectAsync(redisConnection);
         IDatabase redisDb = redis.GetDatabase();
 
-        try {
-            IConnection connection = await ConnectToRabbitMQAsync(rabbitHost);
-            IChannel consumeChannel = await connection.CreateChannelAsync();
-            IChannel publishChannel = await connection.CreateChannelAsync();
+        try
+        {
+            var factory = new ConnectionFactory
+            {
+                HostName = rabbitHost,
+                UserName = rabbitUser,
+                Password = rabbitPass
+            };
+            using IConnection connection = await factory.CreateConnectionAsync();
+            using IChannel consumeChannel = await connection.CreateChannelAsync();
+            using IChannel publishChannel = await connection.CreateChannelAsync();
 
             await DeclareSettings(consumeChannel, publishChannel, redisDb);
             await Task.Delay(-1);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ошибка логгера: {ex.Message}");
+            Console.WriteLine($"ошибка rankcalculator: {ex.Message}");
         }
     }
 
@@ -78,7 +88,7 @@ class Program
         var id = Encoding.UTF8.GetString(ea.Body.ToArray());
         try
         {
-            var text = await redisDb.StringGetAsync($"TEXT-{id}");
+            var text = await redisDb.HashGetAsync($"TEXT-{id}", "Text");
             if (text.IsNullOrEmpty)
             {
                 await consumeChannel.BasicAckAsync(ea.DeliveryTag, false);

@@ -12,11 +12,20 @@ class Program
     static async Task Main(string[] args)
     {
         string rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+        string rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+        string rabbitPass = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest";
 
         try
         {
-            IConnection connection = await ConnectToRabbitMQWithRetryAsync(rabbitHost);
-            using IChannel channel = await connection.CreateChannelAsync();
+            var factory = new ConnectionFactory
+            {
+                HostName = rabbitHost,
+                UserName = rabbitUser,
+                Password = rabbitPass
+            };
+
+            IConnection connection = await ConnectToRabbitMQWithRetryAsync(factory);
+            await using IChannel channel = await connection.CreateChannelAsync();
 
             await SetupEventListeningAsync(channel);
             await WaitForShutdownAsync();
@@ -27,30 +36,47 @@ class Program
         }
     }
 
+    private static async Task<IConnection> ConnectToRabbitMQWithRetryAsync(ConnectionFactory factory, int maxRetries = 10)
+    {
+        for (int i = 1; i <= maxRetries; i++)
+        {
+            try
+            {
+                return await factory.CreateConnectionAsync();
+            }
+            catch
+            {
+                await Task.Delay(2000);
+            }
+        }
+        throw new Exception("не удалось подключиться к RabbitMQ после нескольких попыток");
+    }
+
     private static async Task SetupEventListeningAsync(IChannel channel)
     {
         await channel.ExchangeDeclareAsync(
-            exchange: EventsExchangeName, 
+            exchange: EventsExchangeName,
             type: ExchangeType.Fanout
         );
 
         QueueDeclareOk queueDeclareResult = await channel.QueueDeclareAsync(
-            queue: "",           
+            queue: "",
             durable: false,
             exclusive: true,
             autoDelete: true
         );
         string myQueueName = queueDeclareResult.QueueName;
+
         await channel.QueueBindAsync(
-            queue: myQueueName, 
-            exchange: EventsExchangeName, 
+            queue: myQueueName,
+            exchange: EventsExchangeName,
             routingKey: ""
         );
-        
-        AsyncEventingBasicConsumer consumer = CreateConsumer(channel);
+
+        var consumer = CreateConsumer(channel);
         await channel.BasicConsumeAsync(
-            queue: myQueueName, 
-            autoAck: false, 
+            queue: myQueueName,
+            autoAck: false,
             consumer: consumer
         );
 
@@ -60,7 +86,7 @@ class Program
     private static AsyncEventingBasicConsumer CreateConsumer(IChannel channel)
     {
         var consumer = new AsyncEventingBasicConsumer(channel);
-        consumer.ReceivedAsync += async (model, ea) => await OnMessageReceivedAsync(channel, ea);
+        consumer.ReceivedAsync += async (_, ea) => await OnMessageReceivedAsync(channel, ea);
         return consumer;
     }
 
@@ -78,7 +104,7 @@ class Program
             string id = root.GetProperty("Id").GetString();
             double value = root.GetProperty("Value").GetDouble();
 
-            Console.WriteLine($"{type} {id} {value}");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {type} | Id: {id} | Value: {value}");
         }
         catch (Exception ex)
         {
@@ -91,19 +117,5 @@ class Program
     private static async Task WaitForShutdownAsync()
     {
         await Task.Delay(-1);
-    }
-
-    private static async Task<IConnection> ConnectToRabbitMQWithRetryAsync(string host, int maxRetries = 10)
-    {
-        var factory = new ConnectionFactory { HostName = host };
-        for (int i = 1; i <= maxRetries; i++)
-        {
-            try { return await factory.CreateConnectionAsync(); }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-        throw new Exception("не удалось подключиться к RabbitMQ");
     }
 }
