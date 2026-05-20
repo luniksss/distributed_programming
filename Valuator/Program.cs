@@ -1,6 +1,8 @@
 using StackExchange.Redis;
 using RabbitMQ.Client;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Valuator.Services;
 
 namespace Valuator;
 
@@ -9,20 +11,40 @@ public class Program
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-
-        // Add services to the container.
         builder.Services.AddRazorPages();
+        builder.Services.AddScoped<IUserService, UserService>();
+
+        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.LoginPath = "/Login";
+                options.Cookie.HttpOnly = true;
+                options.ExpireTimeSpan = TimeSpan.FromDays(1);
+            });
+
         builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         {
-            var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
+            var redisPassword = Environment.GetEnvironmentVariable("REDIS_PASSWORD");
+            var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "redis:6379";
             var configuration = ConfigurationOptions.Parse(redisConnectionString);
+            if (!string.IsNullOrEmpty(redisPassword))
+                configuration.Password = redisPassword;
+
             return ConnectionMultiplexer.Connect(configuration);
         });
 
         builder.Services.AddSingleton<IConnection>(sp =>
         {
             var host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
-            var factory = new ConnectionFactory() { HostName = host };
+            var rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+            var rabbitPass = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+            var factory = new ConnectionFactory
+            {
+                HostName = host,
+                UserName = rabbitUser,
+                Password = rabbitPass
+            };
+
             const int maxRetries = 10;
             for (int i = 1; i <= maxRetries; i++)
             {
@@ -58,8 +80,6 @@ public class Program
         });
 
         var app = builder.Build();
-
-        // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/Error");
@@ -67,6 +87,8 @@ public class Program
         app.UseStaticFiles();
 
         app.UseRouting();
+
+        app.UseAuthentication();
 
         app.UseAuthorization();
 

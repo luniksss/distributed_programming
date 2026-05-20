@@ -95,7 +95,15 @@ class Program
 
     private static async Task<IConnection> ConnectToRabbitMQWithRetryAsync(string host, int maxRetries = 10)
     {
-        var factory = new ConnectionFactory { HostName = host };
+        var rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+        var rabbitPass = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+        var factory = new ConnectionFactory
+        {
+            HostName = host,
+            UserName = rabbitUser,
+            Password = rabbitPass
+        };
+
         for (int i = 1; i <= maxRetries; i++)
         {
             try { return await factory.CreateConnectionAsync(); }

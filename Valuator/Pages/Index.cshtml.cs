@@ -5,9 +5,13 @@ using System.Text.RegularExpressions;
 using RabbitMQ.Client;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Valuator.Pages;
 
+[Authorize]
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
@@ -28,7 +32,7 @@ public class IndexModel : PageModel
 
     }
 
-    public IActionResult OnPost(string text)
+    public async Task<IActionResult> OnPost(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -42,6 +46,9 @@ public class IndexModel : PageModel
         _redisDb.StringSet($"TEXT-{id}", text);
         double similarity = CalculateSimilarity(text, id);
         _redisDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await _redisDb.StringSetAsync($"OWNER-{id}", userId);
 
         PublishSimilarityEvent(id, similarity);
         PublishRankTask(id);

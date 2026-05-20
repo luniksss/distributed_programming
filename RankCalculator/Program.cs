@@ -14,9 +14,14 @@ class Program
 
     static async Task Main(string[] args)
     {
-        string redisConnection = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
+        var redisPassword = Environment.GetEnvironmentVariable("REDIS_PASSWORD");
+        var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "redis:6379";
+        var configuration = ConfigurationOptions.Parse(redisConnectionString);
+        if (!string.IsNullOrEmpty(redisPassword))
+            configuration.Password = redisPassword;
+        var redis = await ConnectionMultiplexer.ConnectAsync(configuration);
+
         string rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
-        var redis = await ConnectionMultiplexer.ConnectAsync(redisConnection);
         IDatabase redisDb = redis.GetDatabase();
 
         try {
@@ -51,7 +56,16 @@ class Program
 
     private static async Task<IConnection> ConnectToRabbitMQAsync(string host, int maxRetries = 10)
     {
-        var factory = new ConnectionFactory { HostName = host };
+
+        var rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+        var rabbitPass = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+        var factory = new ConnectionFactory
+        {
+            HostName = host,
+            UserName = rabbitUser,
+            Password = rabbitPass
+        };
+
         for (int i = 1; i <= maxRetries; i++)
         {
             try { return await factory.CreateConnectionAsync(); }

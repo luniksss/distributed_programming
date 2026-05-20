@@ -1,4 +1,10 @@
-﻿<!DOCTYPE html>
+﻿@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+@{
+    var isAuthenticated = User?.Identity?.IsAuthenticated ?? false;
+}
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -25,6 +31,23 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-page="/About">Об авторе</a>
                         </li>
+                    </ul>
+                    <ul class="navbar-nav ms-auto">
+                        @if (isAuthenticated)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" asp-page="/Logout">Выйти</a>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" asp-page="/Login">Вход</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" asp-page="/Register">Регистрация</a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>

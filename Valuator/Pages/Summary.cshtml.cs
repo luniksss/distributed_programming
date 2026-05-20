@@ -6,8 +6,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Valuator.Pages;
+
+[Authorize]
 public class SummaryModel : PageModel
 {
     private readonly ILogger<SummaryModel> _logger;
@@ -23,12 +27,22 @@ public class SummaryModel : PageModel
     public double Similarity { get; set; }
     public bool IsRankComputed { get; set; }
 
-    public void OnGet(string id)
+    public async Task<IActionResult> OnGet(string id)
     {
+        var ownerId = await _redisDb.StringGetAsync($"OWNER-{id}");
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (ownerId.IsNullOrEmpty || ownerId != currentUserId)
+        {
+            if (User.Identity.IsAuthenticated)
+                return RedirectToPage("/Error", new { message = "Доступ запрещён" });
+            else
+                return Forbid();
+        }
+
         _logger.LogDebug(id);
 
         string rankKey = $"RANK-{id}";
-        var rankValue = _redisDb.StringGet(rankKey);
+        var rankValue = await _redisDb.StringGetAsync(rankKey);
         _logger.LogDebug($"Rank value: {rankValue}");
         if (double.TryParse(rankValue, out double rank))
         {
@@ -43,11 +57,13 @@ public class SummaryModel : PageModel
         }
 
         string similarityKey = $"SIMILARITY-{id}";
-        var similarityValue = _redisDb.StringGet(similarityKey);
+        var similarityValue = await _redisDb.StringGetAsync(similarityKey);
         if (double.TryParse(similarityValue, out double similarity))
         {
             Similarity = similarity;
             _logger.LogDebug($"Similarity: {similarity}");
         }
+
+        return Page();
     }
 }

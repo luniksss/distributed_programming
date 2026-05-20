@@ -9,7 +9,7 @@ namespace Valuator.Pages;
 public class ErrorModel : PageModel
 {
     public string? RequestId { get; set; }
-
+    public string? ErrorMessage { get; set; }
     public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
 
     private readonly ILogger<ErrorModel> _logger;
@@ -19,9 +19,14 @@ public class ErrorModel : PageModel
         _logger = logger;
     }
 
-    public void OnGet()
+    public void OnGet(string? message = null)
     {
         RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        ErrorMessage = message;
+
+        if (!string.IsNullOrEmpty(message) && message.Contains("запрещён"))
+        {
+            HttpContext.Response.StatusCode = 403;
+        }
     }
 }
-
