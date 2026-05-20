@@ -6,41 +6,30 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
-using Microsoft.AspNetCore.Identity;
 
 namespace Valuator.Pages;
 public class SummaryModel : PageModel
 {
     private readonly ILogger<SummaryModel> _logger;
     private readonly IDatabase _redisDb;
-    private readonly UserManager<IdentityUser> _userManager;
 
-    public SummaryModel(ILogger<SummaryModel> logger, IConnectionMultiplexer redis, UserManager<IdentityUser> userManager)
+    public SummaryModel(ILogger<SummaryModel> logger, IConnectionMultiplexer redis)
     {
         _logger = logger;
         _redisDb = redis.GetDatabase();
-        _userManager = userManager;
     }
 
     public double Rank { get; set; }
     public double Similarity { get; set; }
     public bool IsRankComputed { get; set; }
 
-        public async Task<IActionResult> OnGetAsync(string id)
+    public void OnGet(string id)
     {
         _logger.LogDebug(id);
 
-        if (!User.Identity.IsAuthenticated)
-            return RedirectToPage("/Account/Login");
-
-        var userId = await _redisDb.HashGetAsync($"TEXT-{id}", "UserId");
-        var currentUserId = _userManager.GetUserId(User);
-
-        if (userId.IsNullOrEmpty || userId != currentUserId)
-            return RedirectToPage("/Error");
-
         string rankKey = $"RANK-{id}";
-        var rankValue = await _redisDb.GetAsync(rankKey);
+        var rankValue = _redisDb.StringGet(rankKey);
+        _logger.LogDebug($"Rank value: {rankValue}");
         if (double.TryParse(rankValue, out double rank))
         {
             Rank = rank;
@@ -54,13 +43,11 @@ public class SummaryModel : PageModel
         }
 
         string similarityKey = $"SIMILARITY-{id}";
-        var similarityValue = await _redisDb.StringGetAsync(similarityKey);
+        var similarityValue = _redisDb.StringGet(similarityKey);
         if (double.TryParse(similarityValue, out double similarity))
         {
             Similarity = similarity;
             _logger.LogDebug($"Similarity: {similarity}");
         }
-
-        return Page();
     }
 }

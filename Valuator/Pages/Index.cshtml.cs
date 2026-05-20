@@ -5,8 +5,6 @@ using System.Text.RegularExpressions;
 using RabbitMQ.Client;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Identity;
-using System.Security.Claims;
 
 namespace Valuator.Pages;
 
@@ -16,15 +14,13 @@ public class IndexModel : PageModel
     private readonly IDatabase _redisDb;
     private readonly IConnectionMultiplexer _redis;
     private readonly IModel _rabbitChannel;
-    private readonly UserManager<IdentityUser> _userManager;
 
-    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis, IModel rabbitChannel, UserManager<IdentityUser> userManager)
+    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis, IModel rabbitChannel)
     {
-        _logger = logger;
-        _redis = redis;
-        _redisDb = redis.GetDatabase();
-        _rabbitChannel = rabbitChannel;
-        _userManager = userManager;
+      _logger = logger;
+      _redis = redis;
+      _redisDb = redis.GetDatabase();
+      _rabbitChannel = rabbitChannel;
     }
 
     public void OnGet()
@@ -32,7 +28,7 @@ public class IndexModel : PageModel
 
     }
 
-    public async Task<IActionResult> OnPostAsync(string text)
+    public IActionResult OnPost(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -40,21 +36,12 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        if (!User.Identity.IsAuthenticated)
-            return RedirectToPage("/Account/Login");
-
         _logger.LogDebug(text);
 
         string id = Guid.NewGuid().ToString();
-        string userId = _userManager.GetUserId(User);
-
-        await _redisDb.HashSetAsync($"TEXT-{id}", new HashEntry[] {
-            new HashEntry("Text", text),
-            new HashEntry("UserId", userId)
-        });
-
+        _redisDb.StringSet($"TEXT-{id}", text);
         double similarity = CalculateSimilarity(text, id);
-        await _redisDb.StringSetAsync($"SIMILARITY-{id}", similarity.ToString());
+        _redisDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
 
         PublishSimilarityEvent(id, similarity);
         PublishRankTask(id);
